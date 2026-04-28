@@ -17,6 +17,164 @@ st.markdown("""
     <style>
     .main { background-color: #f5f7f9; }
     .stTitle, .stSubheader { text-align: center; }
+    
+    /* Style des cartes de métriques */
+    [data-testid="stMetric"] {
+        background-color: #ffffff !important;
+        padding: 15px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+        border: 1px solid #eee !important;
+        text-align: center !important;
+    }
+    
+    /* Titre de la métrique (Label) */
+    [data-testid="stMetricLabel"] {
+        font-size: 1.1rem !important;
+        font-weight: bold !important;
+        color: #333 !important;
+        justify-content: center !important;
+    }
+
+    /* Valeur de la métrique */
+    [data-testid="stMetricValue"] {
+        color: #007bff !important;
+        font-size: 2rem !important;
+    }
+    
+    .stButton>button[kind="primary"] { background-color: #007bff; color: white; width: 100%; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# --- CONNEXION TiDB ---
+def get_connection():
+    return mysql.connector.connect(
+        host=st.secrets["tidb"]["host"],
+        user=st.secrets["tidb"]["user"],
+        password=st.secrets["tidb"]["password"],
+        database=st.secrets["tidb"]["database"],
+        port=int(st.secrets["tidb"]["port"])
+    )
+
+# --- STRUCTURE ---
+side_margin_left, central_column, side_margin_right = st.columns([1, 4, 1])
+
+with central_column:
+    st.title("🎓 ConcourStats")
+    st.markdown("<p style='text-align: center; color: #666;'>Plateforme d'analyse des performances académiques</p>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    tab1, tab2 = st.tabs(["📝 Collecte de Données", "📊 Tableau de Bord"])
+
+    # --- ONGLET 1 : COLLECTE ---
+    with tab1:
+        st.subheader("Nouvelle Entrée")
+        with st.form("modern_form", clear_on_submit=True):
+            nom = st.text_input("Nom complet").strip()
+            groupe = st.selectbox("Centre de formation", ["Alpha", "Bravo", "Elite", "Autre"])
+            loc = st.text_input("📍 Localisation (Ville/Quartier)")
+            prix = st.number_input("💰 Coût de la prépa (FCFA)", min_value=0, step=5000)
+            res = st.select_slider("Résultat au concours", options=["Échoué", "Admis"])
+            fil = st.text_input("🎓 Filière d'admission (si applicable)")
+            submit = st.form_submit_button("🚀 Enregistrer l'expérience", type="primary")
+            
+            if submit:
+                if not nom:
+                    st.warning("Le nom est obligatoire.")
+                else:
+                    try:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        # Vérification doublons
+                        check_sql = "SELECT id FROM collect_concours WHERE nom_etudiant = %s AND nom_groupe = %s"
+                        cursor.execute(check_sql, (nom, groupe))
+                        if cursor.fetchone():
+                            st.error(f"⚠️ {nom} est déjà enregistré pour {groupe}.")
+                        else:
+                            sql = "INSERT INTO collect_concours (nom_etudiant, nom_groupe, localisation, cout_formation, resultat, filiere_admission) VALUES (%s, %s, %s, %s, %s, %s)"
+                            val = (nom, groupe, loc, prix, res, fil if res == "Admis" else "N/A")
+                            cursor.execute(sql, val)
+                            conn.commit()
+                            st.success("✅ Données ajoutées à la base sécurisée.")
+                        cursor.close()
+                        conn.close()
+                    except Exception as e:
+                        st.error(f"Erreur technique : {e}")
+
+    # --- ONGLET 2 : ANALYSE ---
+    with tab2:
+        try:
+            conn = get_connection()
+            df = pd.read_sql("SELECT * FROM collect_concours", conn)
+            conn.close()
+
+            if not df.empty:
+                # Nettoyage doublons affichage
+                df = df.drop_duplicates(subset=['nom_etudiant', 'nom_groupe'], keep='last')
+
+                total_part = len(df)
+                admis_count = len(df[df['resultat'] == 'Admis'])
+                taux_succes = (admis_count / total_part) * 100
+                taux_echec = 100 - taux_succes
+
+                # --- AFFICHAGE DES CARTES (KPI) AVEC TITRES ---
+                st.write("### 🔑 Indicateurs Clés")
+                c1, c2, c3, c4 = st.columns(4)
+                with c1: st.metric(label="👥 Participants", value=total_part)
+                with c2: st.metric(label="✅ Admis", value=admis_count)
+                with c3: st.metric(label="📈 Taux Succès", value=f"{taux_succes:.1f}%")
+                with c4: st.metric(label="📉 Taux Échec", value=f"{taux_echec:.1f}%")
+
+                st.markdown("---")
+
+                # GRAPHIQUES
+                g1, g2 = st.columns(2)
+                with g1:
+                    st.markdown("<h4 style='text-align: center;'>Performance par Centre</h4>", unsafe_allow_html=True)
+                    stats = df.groupby(['nom_groupe', 'resultat']).size().reset_index(name='Nombre')
+                    fig_bar = px.bar(stats, x='nom_groupe', y='Nombre', color='resultat', 
+                                     barmode='group', template='plotly_white',
+                                     color_discrete_map={'Admis': '#28a745', 'Échoué': '#dc3545'})
+                    st.plotly_chart(fig_bar, use_container_width=True)
+
+                with g2:
+                    st.markdown("<h4 style='text-align: center;'>Répartition (Filtrable)</h4>", unsafe_allow_html=True)
+                    groupes_dispo = ["Tous les groupes"] + sorted(list(df['nom_groupe'].unique()))
+                    groupe_sel = st.selectbox("Filtrer le camembert :", groupes_dispo)
+                    
+                    df_pie = df if groupe_sel == "Tous les groupes" else df[df['nom_groupe'] == groupe_sel]
+                    
+                    fig_pie = px.pie(df_pie, names='resultat', hole=0.4, 
+                                     color='resultat',
+                                     color_discrete_map={'Admis': '#28a745', 'Échoué': '#dc3545'})
+                    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+                    st.plotly_chart(fig_pie, use_container_width=True)
+
+                with st.expander("📋 Consulter la base de données complète"):
+                    st.dataframe(df[['nom_etudiant', 'nom_groupe', 'localisation', 'resultat', 'filiere_admission']], use_container_width=True)
+                
+            else: 
+                st.warning("Aucune donnée disponible pour l'analyse.")
+        except Exception as e: 
+            st.error(f"Impossible de charger les statistiques : {e}")import streamlit as st
+import pandas as pd
+import plotly.express as px
+import mysql.connector
+import time
+
+# --- CONFIGURATION DE LA PAGE ---
+st.set_page_config(
+    page_title="ConcourStats",
+    page_icon="🎓",
+    layout="wide", 
+    initial_sidebar_state="collapsed"
+)
+
+# --- STYLE CSS PERSONNALISÉ ---
+st.markdown("""
+    <style>
+    .main { background-color: #f5f7f9; }
+    .stTitle, .stSubheader { text-align: center; }
     .stMetric {
         background-color: #ffffff !important;
         padding: 20px;
