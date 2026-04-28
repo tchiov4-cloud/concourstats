@@ -72,8 +72,12 @@ with central_column:
 
     # --- TEXTE ANIMÉ ---
     message = (
-        "Bienvenue sur ConcourStats, votre plateforme d'aide à la décision. "
+        "Bienvenue sur ConcourStats, votre plateforme d'aide à la décision."
         "Nous transformons vos expériences réelles en statistiques exploitables."
+        "Chaque concours que vous avez vécu, chaque épreuve franchie ou chaque obstacle rencontré devient une donnée utile pour les candidats de demain."
+        "Grâce à l’agrégation anonyme de vos retours, nous identifions des tendances fiables : taux de réussite, temps de préparation optimal, pièges récurrents, et leviers de progression."
+        "Notre mission : vous aider à faire les bons choix, de l’orientation à la préparation, en passant par la stratégie d’inscription."
+        "Rejoignez une communauté où votre vécu construit des statistiques claires, accessibles et réellement actionnables."
     )
     
     placeholder = st.empty()
