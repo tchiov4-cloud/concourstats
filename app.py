@@ -71,7 +71,7 @@ with central_column:
     st.markdown("---")
     tab1, tab2 = st.tabs(["📝 Formulaire de Collecte", "📊 Dashboard Statistique"])
 
-    # --- ONGLET 1 : COLLECTE (ANTI-DOUBLONS BDD) ---
+    # --- ONGLET 1 : COLLECTE ---
     with tab1:
         st.subheader("Enregistrez votre expérience")
         with st.form("modern_form", clear_on_submit=True):
@@ -90,26 +90,22 @@ with central_column:
                     try:
                         conn = get_connection()
                         cursor = conn.cursor()
-                        
-                        # VERIFICATION : L'étudiant existe-t-il déjà ?
                         check_sql = "SELECT id FROM collect_concours WHERE nom_etudiant = %s AND nom_groupe = %s"
                         cursor.execute(check_sql, (nom, groupe))
                         if cursor.fetchone():
                             st.error(f"L'étudiant **{nom}** est déjà enregistré pour le groupe **{groupe}**.")
                         else:
-                            # INSERTION
                             sql = "INSERT INTO collect_concours (nom_etudiant, nom_groupe, localisation, cout_formation, resultat, filiere_admission) VALUES (%s, %s, %s, %s, %s, %s)"
                             val = (nom, groupe, loc, prix, res, fil if res == "Admis" else "N/A")
                             cursor.execute(sql, val)
                             conn.commit()
                             st.success("Données enregistrées avec succès !")
-                        
                         cursor.close()
                         conn.close()
                     except Exception as e:
                         st.error(f"Erreur : {e}")
 
-    # --- ONGLET 2 : ANALYSE (ANTI-DOUBLONS LISTE) ---
+    # --- ONGLET 2 : ANALYSE ---
     with tab2:
         try:
             conn = get_connection()
@@ -117,7 +113,6 @@ with central_column:
             conn.close()
 
             if not df.empty:
-                # NETTOYAGE : Supprimer les doublons dans le DataFrame
                 df = df.drop_duplicates(subset=['nom_etudiant', 'nom_groupe'], keep='last')
 
                 total_part = len(df)
@@ -147,15 +142,24 @@ with central_column:
                     st.plotly_chart(fig_bar, use_container_width=True)
 
                 with g2:
-                    st.markdown("<h4 style='text-align: center;'>🎯 Répartition Globale</h4>", unsafe_allow_html=True)
-                    fig_pie = px.pie(df, names='resultat', hole=0.5, 
+                    st.markdown("<h4 style='text-align: center;'>🎯 Répartition par Groupe</h4>", unsafe_allow_html=True)
+                    
+                    # Filtre dynamique pour le camembert
+                    groupes_dispo = ["Tous"] + sorted(list(df['nom_groupe'].unique()))
+                    groupe_sel = st.selectbox("Sélectionner un groupe", groupes_dispo)
+                    
+                    df_pie = df if groupe_sel == "Tous" else df[df['nom_groupe'] == groupe_sel]
+                    
+                    fig_pie = px.pie(df_pie, names='resultat', hole=0.5, 
                                      color='resultat',
                                      color_discrete_map={'Admis': '#28a745', 'Échoué': '#dc3545'})
+                    
+                    # Affichage des pourcentages et des labels sur le graphique
+                    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
                     st.plotly_chart(fig_pie, use_container_width=True)
 
                 st.markdown("---")
                 with st.expander("📋 Voir la liste complète (Sans doublons)"):
-                    # AJOUT DE 'localisation' ICI
                     st.dataframe(df[['nom_etudiant', 'nom_groupe', 'localisation', 'resultat', 'filiere_admission']], use_container_width=True)
 
                 # --- RECOMMANDATION ---
@@ -169,7 +173,6 @@ with central_column:
                     ).reset_index()
                     group_stats['taux'] = (group_stats['admis'] / group_stats['total']) * 100
                     best_group = group_stats.loc[group_stats['taux'].idxmax(), 'nom_groupe']
-                    
                     st.success(f"Le centre **{best_group}** affiche la meilleure dynamique de réussite actuelle.")
                 else:
                     st.info("Ajoutez plus de données pour générer une recommandation.")
