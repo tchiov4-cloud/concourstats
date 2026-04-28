@@ -34,10 +34,13 @@ st.markdown("""
     [data-testid="stMetricLabel"] {
         color: #333333 !important;
     }
-    .stButton>button {
-        width: 100%;
-        border-radius: 5px;
-        height: 3em;
+    /* Style spécifique pour le bouton Quitter (Rouge) */
+    .stButton>button[kind="secondary"] {
+        background-color: #ff4b4b;
+        color: white;
+        border: none;
+    }
+    .stButton>button[kind="primary"] {
         background-color: #007bff;
         color: white;
     }
@@ -46,20 +49,31 @@ st.markdown("""
 
 # --- CONNEXION TiDB ---
 def get_connection():
-    # On utilise les CLÉS définies dans les secrets (host, user, password, etc.)
     return mysql.connector.connect(
         host=st.secrets["tidb"]["host"],
         user=st.secrets["tidb"]["user"],
         password=st.secrets["tidb"]["password"],
         database=st.secrets["tidb"]["database"],
-        port=int(st.secrets["tidb"]["port"]) # On s'assure que le port est un entier
+        port=int(st.secrets["tidb"]["port"])
     )
 
 # --- STRUCTURE CENTRÉE ---
 side_margin_left, central_column, side_margin_right = st.columns([1, 4, 1])
 
 with central_column:
-    st.title("🎓 ConcourStats")
+    # --- HEADER AVEC BOUTON QUITTER ---
+    col_t, col_q = st.columns([5, 1])
+    with col_t:
+        st.title("🎓 ConcourStats")
+    with col_q:
+        st.write("##") # Petit espacement
+        if st.button("Quitter 🚪", key="exit_btn", help="Fermer la session"):
+            st.toast("Déconnexion en cours...")
+            time.sleep(1)
+            st.markdown("<h2 style='text-align: center;'>Merci d'avoir utilisé ConcourStats !</h2>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center;'>Vous pouvez fermer cet onglet.</p>", unsafe_allow_html=True)
+            st.stop()
+
     st.markdown("<p style='text-align: center;'>Analyse descriptive des performances des prépas</p>", unsafe_allow_html=True)
 
     # --- TEXTE ANIMÉ ---
@@ -67,11 +81,8 @@ with central_column:
         "Bienvenue sur ConcourStats, votre plateforme d'aide à la décision. "
         "Nous collectons les expériences réelles des candidats aux concours "
         "pour transformer des données brutes en statistiques exploitables. "
-        "Notre algorithme analyse les taux de réussite, les coûts moyens "
-        "ainsi que les spécialisations par filière de chaque centre. "
         "Grâce à votre contribution, les futurs étudiants pourront choisir "
-        "leur encadrement avec une précision scientifique et maximiser "
-        "leurs chances d'intégrer les grandes écoles du Cameroun."
+        "leur encadrement avec une précision scientifique."
     )
     
     placeholder = st.empty()
@@ -104,7 +115,7 @@ with central_column:
             prix = st.number_input("💰 Coût (FCFA)", min_value=0, step=5000)
             res = st.select_slider("Résultat au concours", options=["Échoué", "Admis"])
             fil = st.text_input("🎓 Filière d'admission (Si admis)")
-            submit = st.form_submit_button("🚀 Envoyer les données")
+            submit = st.form_submit_button("🚀 Envoyer les données", type="primary")
             
             if submit:
                 try:
@@ -156,7 +167,7 @@ with central_column:
                         st.plotly_chart(px.pie(df_pie, names='filiere_admission', hole=0.5, template='plotly_white', color_discrete_sequence=px.colors.qualitative.Pastel), use_container_width=True)
                     else: st.write("Aucun admis pour ce groupe.")
 
-                # --- NOUVELLE SECTION : RECOMMANDATION ---
+                # --- RECOMMANDATION ---
                 st.markdown("---")
                 st.markdown("<h3 style='text-align: center;'>💡 Recommandation Stratégique</h3>", unsafe_allow_html=True)
                 
@@ -168,10 +179,9 @@ with central_column:
                     with c_rec1:
                         st.success(f"**Meilleur Centre : {best_row['nom_groupe']}**")
                     with c_rec2:
-                        st.info(f"Le centre **{best_row['nom_groupe']}** domine avec **{best_row['Taux %']:.1f}%** de réussite. "
-                                f"Globalement, la filière **{top_filiere}** enregistre le plus grand nombre d'admissions.")
+                        st.info(f"Le centre **{best_row['nom_groupe']}** domine avec **{best_row['Taux %']:.1f}%** de réussite.")
                 else:
-                    st.info("Ajoutez plus de données pour débloquer les recommandations personnalisées.")
+                    st.info("Ajoutez plus de données pour débloquer les recommandations.")
 
             else: st.warning("Base de données vide.")
         except Exception as e: st.error(f"Erreur : {e}")
