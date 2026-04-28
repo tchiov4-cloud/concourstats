@@ -50,8 +50,7 @@ with central_column:
     message = (
         "Bienvenue sur ConcourStats, votre plateforme d'aide à la décision. "
         "Nous collectons les expériences réelles des candidats aux concours "
-        "pour transformer des données brutes en statistiques exploitables. "
-        "Nous analysons les taux de réussite et d'échec pour vous guider."
+        "pour transformer des données brutes en statistiques exploitables."
     )
     
     placeholder = st.empty()
@@ -72,11 +71,11 @@ with central_column:
     st.markdown("---")
     tab1, tab2 = st.tabs(["📝 Formulaire de Collecte", "📊 Dashboard Statistique"])
 
-    # --- ONGLET 1 : COLLECTE ---
+    # --- ONGLET 1 : COLLECTE (ANTI-DOUBLONS BDD) ---
     with tab1:
         st.subheader("Enregistrez votre expérience")
         with st.form("modern_form", clear_on_submit=True):
-            nom = st.text_input("Nom complet")
+            nom = st.text_input("Nom complet").strip()
             groupe = st.selectbox("Votre groupe", ["Alpha", "Bravo", "Elite", "Autre"])
             loc = st.text_input("📍 Localisation")
             prix = st.number_input("💰 Coût (FCFA)", min_value=0, step=5000)
@@ -85,20 +84,32 @@ with central_column:
             submit = st.form_submit_button("🚀 Envoyer les données", type="primary")
             
             if submit:
-                try:
-                    conn = get_connection()
-                    cursor = conn.cursor()
-                    sql = "INSERT INTO collect_concours (nom_etudiant, nom_groupe, localisation, cout_formation, resultat, filiere_admission) VALUES (%s, %s, %s, %s, %s, %s)"
-                    val = (nom, groupe, loc, prix, res, fil if res == "Admis" else "N/A")
-                    cursor.execute(sql, val)
-                    conn.commit()
-                    st.success("Données enregistrées avec succès !")
-                    cursor.close()
-                    conn.close()
-                except Exception as e:
-                    st.error(f"Erreur : {e}")
+                if not nom:
+                    st.warning("Veuillez entrer votre nom.")
+                else:
+                    try:
+                        conn = get_connection()
+                        cursor = conn.cursor()
+                        
+                        # VERIFICATION : L'étudiant existe-t-il déjà ?
+                        check_sql = "SELECT id FROM collect_concours WHERE nom_etudiant = %s AND nom_groupe = %s"
+                        cursor.execute(check_sql, (nom, groupe))
+                        if cursor.fetchone():
+                            st.error(f"L'étudiant **{nom}** est déjà enregistré pour le groupe **{groupe}**.")
+                        else:
+                            # INSERTION
+                            sql = "INSERT INTO collect_concours (nom_etudiant, nom_groupe, localisation, cout_formation, resultat, filiere_admission) VALUES (%s, %s, %s, %s, %s, %s)"
+                            val = (nom, groupe, loc, prix, res, fil if res == "Admis" else "N/A")
+                            cursor.execute(sql, val)
+                            conn.commit()
+                            st.success("Données enregistrées avec succès !")
+                        
+                        cursor.close()
+                        conn.close()
+                    except Exception as e:
+                        st.error(f"Erreur : {e}")
 
-    # --- ONGLET 2 : ANALYSE ---
+    # --- ONGLET 2 : ANALYSE (ANTI-DOUBLONS LISTE) ---
     with tab2:
         try:
             conn = get_connection()
@@ -106,6 +117,9 @@ with central_column:
             conn.close()
 
             if not df.empty:
+                # NETTOYAGE : Supprimer les doublons dans le DataFrame au cas où la BDD en contient déjà
+                df = df.drop_duplicates(subset=['nom_etudiant', 'nom_groupe'], keep='last')
+
                 total_part = len(df)
                 admis_df = df[df['resultat'] == 'Admis']
                 echoue_df = df[df['resultat'] == 'Échoué']
@@ -113,7 +127,7 @@ with central_column:
                 taux_succes = (len(admis_df) / total_part) * 100
                 taux_echec = (len(echoue_df) / total_part) * 100
 
-                # KPI - AFFICHAGE SIMPLE SANS DELTA
+                # KPI
                 c1, c2, c3, c4 = st.columns(4)
                 with c1: st.metric("Participants", total_part)
                 with c2: st.metric("Admis", len(admis_df))
@@ -140,7 +154,8 @@ with central_column:
                     st.plotly_chart(fig_pie, use_container_width=True)
 
                 st.markdown("---")
-                with st.expander("📋 Voir la liste complète des participants"):
+                with st.expander("📋 Voir la liste complète (Sans doublons)"):
+                    # On affiche uniquement les colonnes utiles
                     st.dataframe(df[['nom_etudiant', 'nom_groupe', 'resultat', 'filiere_admission']], use_container_width=True)
 
                 # --- RECOMMANDATION ---
@@ -163,3 +178,4 @@ with central_column:
                 st.warning("Base de données vide.")
         except Exception as e: 
             st.error(f"Erreur de connexion : {e}")
+            
