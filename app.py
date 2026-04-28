@@ -46,12 +46,13 @@ st.markdown("""
 
 # --- CONNEXION TiDB ---
 def get_connection():
+    # On utilise les CLÉS définies dans les secrets (host, user, password, etc.)
     return mysql.connector.connect(
-        host=st.secrets["tidb"]["gateway01.eu-central-1.prod.aws.tidbcloud.com"],
-        user=st.secrets["tidb"]["32ZnJyRqDd9jcD4.root"],
-        password=st.secrets["tidb"]["SQGuG8wmt0EOfGkB"],
-        database=st.secrets["tidb"]["concours_db"],
-        port=st.secrets["tidb"]["4000"]
+        host=st.secrets["tidb"]["host"],
+        user=st.secrets["tidb"]["user"],
+        password=st.secrets["tidb"]["password"],
+        database=st.secrets["tidb"]["database"],
+        port=int(st.secrets["tidb"]["port"]) # On s'assure que le port est un entier
     )
 
 # --- STRUCTURE CENTRÉE ---
