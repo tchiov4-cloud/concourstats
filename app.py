@@ -113,12 +113,12 @@ with central_column:
                 taux_succes = (len(admis_df) / total_part) * 100
                 taux_echec = (len(echoue_df) / total_part) * 100
 
-                # KPI
+                # KPI - AFFICHAGE SIMPLE SANS DELTA
                 c1, c2, c3, c4 = st.columns(4)
                 with c1: st.metric("Participants", total_part)
                 with c2: st.metric("Admis", len(admis_df))
                 with c3: st.metric("Taux Succès", f"{taux_succes:.1f}%")
-                with c4: st.metric("Taux Échec", f"{taux_echec:.1f}%", delta=f"{taux_echec:.1f}%", delta_color="inverse")
+                with c4: st.metric("Taux Échec", f"{taux_echec:.1f}%")
 
                 st.write("###") 
 
