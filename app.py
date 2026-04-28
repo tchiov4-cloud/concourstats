@@ -117,7 +117,7 @@ with central_column:
             conn.close()
 
             if not df.empty:
-                # NETTOYAGE : Supprimer les doublons dans le DataFrame au cas où la BDD en contient déjà
+                # NETTOYAGE : Supprimer les doublons dans le DataFrame
                 df = df.drop_duplicates(subset=['nom_etudiant', 'nom_groupe'], keep='last')
 
                 total_part = len(df)
@@ -155,8 +155,8 @@ with central_column:
 
                 st.markdown("---")
                 with st.expander("📋 Voir la liste complète (Sans doublons)"):
-                    # On affiche uniquement les colonnes utiles
-                    st.dataframe(df[['nom_etudiant', 'nom_groupe', 'resultat', 'filiere_admission']], use_container_width=True)
+                    # AJOUT DE 'localisation' ICI
+                    st.dataframe(df[['nom_etudiant', 'nom_groupe', 'localisation', 'resultat', 'filiere_admission']], use_container_width=True)
 
                 # --- RECOMMANDATION ---
                 st.markdown("---")
@@ -178,4 +178,3 @@ with central_column:
                 st.warning("Base de données vide.")
         except Exception as e: 
             st.error(f"Erreur de connexion : {e}")
-            
